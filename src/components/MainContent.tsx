@@ -27,7 +27,7 @@ export function MainContent({ setIsOpen }: { setIsOpen: (v: boolean) => void }) 
                         <Database className="w-4 h-4 text-primary-foreground" />
                     </div> */}
                     <img
-                        src={"/src/assets/wfxlogo.png"}
+                        src={"https://res.cloudinary.com/dgino6jbz/image/upload/v1757665898/wfxlogo_zbe1bg.png"}
                         alt="WFX Logo"
                         className="w-10 h-10 relative top-1 object-contain"
                     />
