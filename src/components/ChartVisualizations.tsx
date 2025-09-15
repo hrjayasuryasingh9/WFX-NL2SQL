@@ -45,31 +45,48 @@ export function ChartVisualization() {
 
         return rows.map((row) => {
             const item: any = {};
+
             columns.forEach((col, index) => {
-                item[col] = row[index];
+                const rawValue = row[index];
+                const numValue = Number(rawValue);
+
+                if (rawValue !== null && rawValue !== '' && !isNaN(numValue)) {
+                    item[col] = numValue;
+                } else {
+                    item[col] = rawValue;
+                }
             });
+
+            // 🔥 Combine all string columns into one label
+            const stringCols = columns.filter((c, i) => typeof item[c] === 'string');
+            if (stringCols.length > 1) {
+                item.__label = stringCols.map(c => item[c]).join(" - ");
+            } else if (stringCols.length === 1) {
+                item.__label = item[stringCols[0]];
+            } else {
+                item.__label = `Row ${Math.random().toString(36).slice(2, 6)}`;
+            }
+
             return item;
         });
     }, [currentConversation]);
 
+
+
     if (!showChart || !chartData) return null;
 
     const renderChart = () => {
-        const numericColumns = chartData.length > 0
-            ? Object.keys(chartData[0]).filter(key =>
-                typeof chartData[0][key] === 'number'
-            )
-            : [];
+        if (!chartData || chartData.length === 0) return null;
 
-        const stringColumns = chartData.length > 0
-            ? Object.keys(chartData[0]).filter(key =>
-                typeof chartData[0][key] === 'string'
-            )
-            : [];
+        const sampleRow = chartData[0];
 
-        const xAxisKey = stringColumns[0] || Object.keys(chartData[0])[0];
-        const yAxisKey = numericColumns[0] || Object.keys(chartData[0])[1];
+        const numericColumns = Object.keys(sampleRow).filter(
+            key => typeof sampleRow[key] === 'number'
+        );
 
+        // Always fallback to our combined label
+        const xAxisKey = "__label";
+        const yAxisKey = numericColumns[0] || null;
         switch (selectedChartType) {
             case 'bar':
                 return (
@@ -182,6 +199,8 @@ export function ChartVisualization() {
                 );
 
             case 'pie':
+                if (!yAxisKey) return <p>No numeric data for Pie chart</p>;
+
                 const pieData = chartData.map((item, index) => ({
                     name: item[xAxisKey],
                     value: item[yAxisKey] || 0,
