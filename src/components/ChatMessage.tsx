@@ -1,4 +1,4 @@
-import { User, Bot, Copy, Check } from 'lucide-react';
+import { User, Bot, Copy, Check, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Message, useSqlStore } from '@/store/sqlStore';
@@ -11,7 +11,7 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-    const { regenerateMessage, submitFeedback, setMessageFeedback } = useSqlStore();
+    const { regenerateMessage, submitFeedback, setMessageFeedback, setCurrentQuery, regenerateQuery, submitQuery, isLoading } = useSqlStore();
     const [copiedSql, setCopiedSql] = useState(false);
     const [feedback, setFeedback] = useState<string>('none');
     const [editingSql, setEditingSql] = useState(message.sql);
@@ -26,6 +26,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
         } catch (err) {
             console.error('Failed to copy text: ', err);
         }
+    };
+    const handlerefresh = async () => {
+        // const query = message.userQuery
+        // if (!query.trim() || isLoading) return;
+
+        // setCurrentQuery(query);
+        // await submitQuery(query);
+        regenerateQuery(message);
     };
 
     const formatTimestamp = (date: Date) => {
@@ -91,14 +99,24 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                             <div className="w-2 h-2 bg-success rounded-full"></div>
                                             <span className="text-xs text-muted-foreground ml-2">SQL Query</span>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => copyToClipboard(editingSql)}
-                                            className="text-muted-foreground hover:text-foreground transition-smooth"
-                                        >
-                                            {copiedSql ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                        </Button>
+                                        <div className='flex gap-1 items-center'>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handlerefresh()}
+                                                className="text-muted-foreground hover:text-foreground transition-smooth"
+                                            >
+                                                <RefreshCcw className='w-3 h-3' />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => copyToClipboard(editingSql)}
+                                                className="text-muted-foreground hover:text-foreground transition-smooth"
+                                            >
+                                                {copiedSql ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className="p-4">
                                         {showSqlCard ? (

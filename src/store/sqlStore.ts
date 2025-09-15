@@ -47,6 +47,7 @@ interface SqlStore {
   loadConversationsFromStorage: () => void;
   submitFeedback: (foundMessage: Message) => Promise<void>; 
   setMessageFeedback: (messageId:string, feedback:string) => void;
+  regenerateQuery:(message:Message)=>void;
   // new
 }
 
@@ -334,6 +335,63 @@ submitFeedback: async (foundMessage:Message) => {
       set({ currentConversation: conversation });
     }
   },
+
+  regenerateQuery: async (message: Message) => {
+  const state = get();
+  if (!state.currentConversation) return;
+
+  const conversation = { ...state.currentConversation };
+
+  // find the index of the passed message
+  const targetMessageIndex = conversation.messages.findIndex(m => m.id === message.id);
+  if (targetMessageIndex === -1) return;
+
+  // put loading state
+  conversation.messages[targetMessageIndex] = {
+    ...conversation.messages[targetMessageIndex],
+    isLoading: true,
+    sql: undefined,
+    result: undefined,
+    feedback: "none",
+    content: '',
+    timestamp: new Date(),
+  };
+
+  set({ currentConversation: conversation });
+
+  try {
+    // regenerate sql first
+    const regeneratedSql = await generateMockSql(message.userQuery);
+    const regeneratedResult = await generateResult(regeneratedSql);
+
+    const updatedMessage: Message = {
+      ...conversation.messages[targetMessageIndex],
+      type: 'assistant',
+      content: "Here's the regenerated SQL query:",
+      sql: regeneratedSql,
+      result: regeneratedResult,
+      isLoading: false,
+      timestamp: new Date(),
+    };
+
+    conversation.messages[targetMessageIndex] = updatedMessage;
+
+    const updatedConversations = [
+      conversation,
+      ...state.conversations.filter(c => c.id !== conversation!.id)
+    ];
+
+    set({
+      currentConversation: { ...conversation },
+      conversations: updatedConversations,
+    });
+    saveConversationsToStorage(updatedConversations);
+  } catch (error) {
+    console.error('Error regenerating query:', error);
+    set({ currentConversation: conversation });
+  }
+},
+
   setSelectedChartType: (type) => set({ selectedChartType: type }),
   toggleChart: () => set((state) => ({ showChart: !state.showChart })),
   startNewConversation: () => set({ currentConversation: null }),
