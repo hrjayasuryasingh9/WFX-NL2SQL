@@ -109,7 +109,7 @@ const generateResult = async (sql: string): Promise<QueryResult> => {
 const generateMockSql = async (query: string): Promise<string> => {
   try {
     const res = await axios.post(
-      `${import.meta.env.VITE_API_BASE_URL}translate`,
+      `https://2h1k5lsrk9.execute-api.ap-south-1.amazonaws.com/dev/translate`,
       { question: query }
     );
     return res.data.sql;
