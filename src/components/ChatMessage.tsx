@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Message, useSqlStore } from '@/store/sqlStore';
 import { DataTable } from './DataTable';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ChatMessageProps {
@@ -27,12 +27,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             console.error('Failed to copy text: ', err);
         }
     };
-    const handlerefresh = async () => {
-        // const query = message.userQuery
-        // if (!query.trim() || isLoading) return;
-
-        // setCurrentQuery(query);
-        // await submitQuery(query);
+    const handleRefresh = async () => {
         regenerateQuery(message);
     };
 
@@ -42,6 +37,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
             minute: '2-digit',
         }).format(date);
     };
+    useEffect(() => {
+        if (showSqlCard) {
+            sqlCardRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }
+    }, [showSqlCard]);
 
     if (message.type === 'user') {
         return (
@@ -103,7 +106,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => handlerefresh()}
+                                                onClick={() => handleRefresh()}
                                                 className="text-muted-foreground hover:text-foreground transition-smooth"
                                             >
                                                 <RefreshCcw className='w-3 h-3' />
@@ -135,11 +138,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                             <Button
                                                 className="mt-2 bg-blue-600 hover:bg-blue-600/80"
                                                 onClick={() => {
-                                                    console.log('Run SQL:', editingSql);
-                                                    regenerateMessage(message.id, editingSql)
+                                                    regenerateMessage(message.id, editingSql);
                                                     setShowSqlCard(false);
                                                     setFeedback("none");
                                                 }}
+                                                disabled={!editingSql || editingSql.trim() === message.sql?.trim()}
                                             >
                                                 Run Again
                                             </Button>
@@ -193,13 +196,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                                             setMessageFeedback(message.id, "no");
                                                             setShowSqlCard(true);
                                                             setEditingSql(message.sql);
-                                                            setTimeout(() => {
-                                                                sqlCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                            }, 50); // small delay to ensure card is rendered
                                                         }}
                                                     >
                                                         No
                                                     </Button>
+
                                                 </div>
                                             </div>
                                         )}

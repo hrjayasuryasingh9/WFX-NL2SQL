@@ -264,29 +264,42 @@ submitFeedback: async (foundMessage:Message) => {
     console.error("Feedback submission failed:", feedback.error);
   }
 },
-  setMessageFeedback: (messageId:string, feedback:string) => {
+setMessageFeedback: (messageId: string, feedback: string) => {
   const state = get();
 
-  // Update across all conversations
-  const updatedConversations = state.conversations.map(conv => ({
-    ...conv,
-    messages: conv.messages.map(m =>
-      m.id === messageId ? { ...m, feedback } : m
-    ),
-  }));
+  // Find the conversation containing the message
+  const convIndex = state.conversations.findIndex(conv =>
+    conv.messages.some(m => m.id === messageId)
+  );
+  if (convIndex === -1) return; // no conversation found
 
-  // Also update currentConversation if it’s open
-  const updatedCurrent =
-    state.currentConversation &&
-    updatedConversations.find(c => c.id === state.currentConversation?.id);
+  const conversation = { ...state.conversations[convIndex] };
+
+  // Find the target message
+  const msgIndex = conversation.messages.findIndex(m => m.id === messageId);
+  if (msgIndex === -1) return;
+
+  // Update only that message
+  conversation.messages[msgIndex] = {
+    ...conversation.messages[msgIndex],
+    feedback,
+  };
+
+  // Replace the conversation in the list
+  const updatedConversations = [...state.conversations];
+  updatedConversations[convIndex] = conversation;
 
   set({
     conversations: updatedConversations,
-    currentConversation: updatedCurrent || state.currentConversation,
+    currentConversation:
+      state.currentConversation?.id === conversation.id
+        ? conversation
+        : state.currentConversation,
   });
 
   saveConversationsToStorage(updatedConversations);
 },
+
 
 
   regenerateMessage: async (messageId, newQuery) => {
