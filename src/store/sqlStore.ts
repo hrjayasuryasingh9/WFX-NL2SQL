@@ -5,6 +5,7 @@ import axios from "axios";
 export interface QueryResult {
   columns: string[];
   rows: any[][];
+    error?: string; 
 }
 
 export interface Conversation {
@@ -97,15 +98,18 @@ const generateResult = async (sql: string): Promise<QueryResult> => {
       rows: data.data
         ? data.data.map((row: any) => data.columns.map((col: string) => row[col]))
         : [],
+      error: data.error || undefined,  // <-- capture backend error
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error executing SQL:", error);
     return {
       columns: ["Error"],
-      rows: [[error instanceof Error ? error.message : "Unknown error"]],
+      rows: [],
+      error: error.response?.data?.error || error.message || "Unknown error", // <-- fallback error
     };
   }
 };
+
 
 const generateMockSql = async (query: string): Promise<string> => {
   try {

@@ -151,21 +151,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             {/* Query Results */}
                             {message.result && (
                                 <Card className="bg-card border border-border">
-                                    <div className="px-4 py-3 border-b border-border">
-                                        <h3 className="text-sm font-medium text-foreground">Query Results</h3>
-                                        <p className="text-xs text-muted-foreground">
-                                            {message.result.rows.length} rows returned
-                                        </p>
-                                    </div>
-                                    <div className="p-4">
-                                        <DataTable result={message.result} />
-                                    </div>
-
-                                    {/* Feedback */}
-
+                                    {message.result.rows && message.result.rows.length > 0 ? (
+                                        <>
+                                            <div className="px-4 py-3 border-b border-border">
+                                                <h3 className="text-sm font-medium text-foreground">Query Results</h3>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {message.result.rows.length} rows returned
+                                                </p>
+                                            </div>
+                                            <div className="p-4">
+                                                <DataTable result={message.result} />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="p-4 text-sm text-red-500">
+                                            {message.result.error || "No results found."}
+                                        </div>
+                                    )}
                                 </Card>
                             )}
-                            {message.feedback && (
+
+                            {message.feedback && message.result.rows && message.result.rows.length > 0 && (
                                 <Card className="bg-card border border-border mt-2">
                                     <div className="py-3 border-b border-border">
                                         {message.feedback === 'none' && (
