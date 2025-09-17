@@ -9,7 +9,7 @@ interface DataTableProps {
 }
 
 export function DataTable({ result }: DataTableProps) {
-    const { toggleChart } = useSqlStore();
+    const { toggleChart, setcurrentVisualMessage } = useSqlStore();
 
     const downloadCSV = () => {
         const headers = result.columns.join(',');
@@ -44,7 +44,10 @@ export function DataTable({ result }: DataTableProps) {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={toggleChart}
+                        onClick={() => {
+                            toggleChart(true);
+                            setcurrentVisualMessage(result);
+                        }}
                         className="text-muted-foreground border-border hover:bg-muted hover:text-foreground transition-smooth text-xs sm:text-sm"
                     >
                         <BarChart3 className="w-3 h-3 mr-1 sm:mr-2" />
@@ -53,18 +56,20 @@ export function DataTable({ result }: DataTableProps) {
                 </div>
 
                 {/* Table Card */}
-                <div className="w-full border border-border rounded-lg bg-card overflow-hidden">
+                <div className="w-full border  border-border rounded-lg bg-card overflow-hidden">
                     {/* Scroll container */}
-                    <div className="w-72 sm:w-full overflow-x-auto overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                        <Table className="w-full  overflow-hidden">
+                    {/* Scroll container */}
+                    {/* Scroll container */}
+                    <div className="w-full overflow-x-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                        <Table className="min-w-max  border-collapse">
                             <TableHeader>
                                 <TableRow className="bg-white border-b border-border hover:bg-gray-100">
                                     {result.columns.map((column, index) => (
                                         <TableHead
                                             key={index}
-                                            className="text-foreground font-medium text-xs sm:text-sm uppercase tracking-wide sticky top-0 bg-white z-10 px-2 sm:px-4 py-2 sm:py-3 min-w-[100px]"
+                                            className="text-foreground font-medium text-xs sm:text-sm uppercase tracking-wide sticky top-0 bg-white z-10 px-2 sm:px-4 py-2 sm:py-3"
                                         >
-                                            <div className="truncate" title={column}>
+                                            <div className="truncate max-w-[150px]" title={column}>
                                                 {column}
                                             </div>
                                         </TableHead>
@@ -80,19 +85,13 @@ export function DataTable({ result }: DataTableProps) {
                                         {row.map((cell, cellIndex) => (
                                             <TableCell
                                                 key={cellIndex}
-                                                className="text-xs sm:text-sm text-foreground py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap min-w-[100px]"
+                                                className="text-xs sm:text-sm text-foreground py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap"
                                             >
                                                 <div
-                                                    className="truncate max-w-[120px] sm:max-w-none"
-                                                    title={
-                                                        typeof cell === "number"
-                                                            ? cell.toLocaleString()
-                                                            : String(cell)
-                                                    }
+                                                    className="truncate max-w-[150px]"
+                                                    title={typeof cell === "number" ? cell.toLocaleString() : String(cell)}
                                                 >
-                                                    {typeof cell === "number"
-                                                        ? cell.toLocaleString()
-                                                        : String(cell)}
+                                                    {typeof cell === "number" ? cell.toLocaleString() : String(cell)}
                                                 </div>
                                             </TableCell>
                                         ))}
@@ -101,6 +100,8 @@ export function DataTable({ result }: DataTableProps) {
                             </TableBody>
                         </Table>
                     </div>
+
+
                 </div>
 
 

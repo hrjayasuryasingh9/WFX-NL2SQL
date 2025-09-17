@@ -28,20 +28,15 @@ export function ChartVisualization() {
         currentConversation,
         selectedChartType,
         setSelectedChartType,
+        currentVisualMessage,
         showChart,
         toggleChart
     } = useSqlStore();
 
     const chartData = useMemo(() => {
-        if (!currentConversation?.messages) return null;
+        if (!currentVisualMessage) return null;
 
-        const lastMessage = currentConversation.messages
-            .filter(m => m.type === 'assistant' && m.result)
-            .pop();
-
-        if (!lastMessage?.result) return null;
-
-        const { columns, rows } = lastMessage.result;
+        const { columns, rows } = currentVisualMessage;
 
         return rows.map((row) => {
             const item: any = {};
@@ -50,17 +45,22 @@ export function ChartVisualization() {
                 const rawValue = row[index];
                 const numValue = Number(rawValue);
 
-                if (rawValue !== null && rawValue !== '' && !isNaN(numValue)) {
+                if (rawValue === true || rawValue === false) {
+                    // ✅ Preserve booleans
+                    item[col] = rawValue;
+                } else if (rawValue !== null && rawValue !== "" && !isNaN(numValue)) {
+                    // ✅ Numbers
                     item[col] = numValue;
                 } else {
+                    // ✅ Strings or nulls
                     item[col] = rawValue;
                 }
             });
 
-            // 🔥 Combine all string columns into one label
-            const stringCols = columns.filter((c, i) => typeof item[c] === 'string');
+            // Combine all string columns into one label
+            const stringCols = columns.filter((c) => typeof item[c] === "string");
             if (stringCols.length > 1) {
-                item.__label = stringCols.map(c => item[c]).join(" - ");
+                item.__label = stringCols.map((c) => item[c]).join(" - ");
             } else if (stringCols.length === 1) {
                 item.__label = item[stringCols[0]];
             } else {
@@ -69,9 +69,40 @@ export function ChartVisualization() {
 
             return item;
         });
-    }, [currentConversation]);
+    }, [currentVisualMessage]);
 
 
+    // 🔥 Suggest chart types based on data
+    const suggestedCharts = useMemo(() => {
+        if (!chartData || chartData.length === 0) return [];
+
+        const sampleRow = chartData[0];
+        const numericColumns = Object.keys(sampleRow).filter(
+            key => typeof sampleRow[key] === "number"
+        );
+        const stringColumns = Object.keys(sampleRow).filter(
+            key =>
+                (typeof sampleRow[key] === "string" || typeof sampleRow[key] === "boolean") &&
+                key !== "__label"
+        );
+
+        const suggestions: ChartType[] = [];
+
+        // Rules
+        if (stringColumns.length === 1 && numericColumns.length === 1) {
+            suggestions.push('bar', 'line', 'area', 'pie');
+        } else if (stringColumns.length >= 1 && numericColumns.length > 1) {
+            suggestions.push('bar', 'line', 'area');
+        } else if (numericColumns.length === 1 && stringColumns.length === 0) {
+            suggestions.push('bar'); // Histogram can be implemented separately
+        } else if (numericColumns.length === 2) {
+            suggestions.push('line', 'area'); // Can implement scatter later
+        } else if (numericColumns.length > 1 && stringColumns.length === 0) {
+            suggestions.push('line', 'area');
+        }
+
+        return suggestions;
+    }, [chartData]);
 
     if (!showChart || !chartData) return null;
 
@@ -79,29 +110,19 @@ export function ChartVisualization() {
         if (!chartData || chartData.length === 0) return null;
 
         const sampleRow = chartData[0];
+        const numericColumns = Object.keys(sampleRow).filter(key => typeof sampleRow[key] === 'number');
 
-        const numericColumns = Object.keys(sampleRow).filter(
-            key => typeof sampleRow[key] === 'number'
-        );
-
-        // Always fallback to our combined label
         const xAxisKey = "__label";
         const yAxisKey = numericColumns[0] || null;
+
         switch (selectedChartType) {
             case 'bar':
                 return (
                     <ResponsiveContainer width="100%" height={400}>
                         <BarChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis
-                                dataKey={xAxisKey}
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
-                            <YAxis
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
+                            <XAxis dataKey={xAxisKey} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                             <Tooltip
                                 contentStyle={{
                                     backgroundColor: 'hsl(var(--popover))',
@@ -112,12 +133,7 @@ export function ChartVisualization() {
                             />
                             <Legend />
                             {numericColumns.map((key, index) => (
-                                <Bar
-                                    key={key}
-                                    dataKey={key}
-                                    fill={CHART_COLORS[index % CHART_COLORS.length]}
-                                    radius={[4, 4, 0, 0]}
-                                />
+                                <Bar key={key} dataKey={key} fill={CHART_COLORS[index % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
                             ))}
                         </BarChart>
                     </ResponsiveContainer>
@@ -128,15 +144,8 @@ export function ChartVisualization() {
                     <ResponsiveContainer width="100%" height={400}>
                         <RechartsLineChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis
-                                dataKey={xAxisKey}
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
-                            <YAxis
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
+                            <XAxis dataKey={xAxisKey} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                             <Tooltip
                                 contentStyle={{
                                     backgroundColor: 'hsl(var(--popover))',
@@ -147,14 +156,7 @@ export function ChartVisualization() {
                             />
                             <Legend />
                             {numericColumns.map((key, index) => (
-                                <Line
-                                    key={key}
-                                    type="monotone"
-                                    dataKey={key}
-                                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                                    strokeWidth={3}
-                                    dot={{ r: 4 }}
-                                />
+                                <Line key={key} type="monotone" dataKey={key} stroke={CHART_COLORS[index % CHART_COLORS.length]} strokeWidth={3} dot={{ r: 4 }} />
                             ))}
                         </RechartsLineChart>
                     </ResponsiveContainer>
@@ -165,15 +167,8 @@ export function ChartVisualization() {
                     <ResponsiveContainer width="100%" height={400}>
                         <RechartsAreaChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis
-                                dataKey={xAxisKey}
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
-                            <YAxis
-                                stroke="hsl(var(--muted-foreground))"
-                                fontSize={12}
-                            />
+                            <XAxis dataKey={xAxisKey} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
                             <Tooltip
                                 contentStyle={{
                                     backgroundColor: 'hsl(var(--popover))',
@@ -237,7 +232,7 @@ export function ChartVisualization() {
                 );
 
             default:
-                return null;
+                return <p>No chart available for this data</p>;
         }
     };
 
@@ -248,7 +243,7 @@ export function ChartVisualization() {
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={toggleChart}
+                    onClick={() => { toggleChart(false) }}
                     className="text-muted-foreground hover:text-foreground transition-smooth"
                 >
                     <X className="w-4 h-4" />
@@ -263,20 +258,21 @@ export function ChartVisualization() {
                         { type: 'line' as ChartType, icon: LineChart, label: 'Line' },
                         { type: 'area' as ChartType, icon: AreaChart, label: 'Area' },
                         { type: 'pie' as ChartType, icon: PieChart, label: 'Pie' },
-                    ].map(({ type, icon: Icon, label }) => (
-                        <Button
-                            key={type}
-                            size="sm"
-                            onClick={() => setSelectedChartType(type)}
-                            className={`transition-all flex items-center ${selectedChartType === type
-                                ? 'bg-blue-600 text-white hover:bg-blue-600/90'
-                                : 'bg-transparent text-gray-700 border border-gray-300 hover:bg-gray-100'
-                                }`}
-                        >
-                            <Icon className="w-3 h-3 mr-1" />
-                            {label}
-                        </Button>
-                    ))}
+                    ].filter(c => suggestedCharts.includes(c.type))
+                        .map(({ type, icon: Icon, label }) => (
+                            <Button
+                                key={type}
+                                size="sm"
+                                onClick={() => setSelectedChartType(type)}
+                                className={`transition-all flex items-center ${selectedChartType === type
+                                    ? 'bg-blue-600 text-white hover:bg-blue-600/90'
+                                    : 'bg-transparent text-gray-700 border border-gray-300 hover:bg-gray-100'
+                                    }`}
+                            >
+                                <Icon className="w-3 h-3 mr-1" />
+                                {label}
+                            </Button>
+                        ))}
                 </div>
 
                 {/* Chart */}

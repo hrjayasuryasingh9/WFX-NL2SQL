@@ -36,12 +36,13 @@ interface SqlStore {
   isLoading: boolean;
   selectedChartType: ChartType;
   showChart: boolean;
+  currentVisualMessage:QueryResult;
 
   setCurrentQuery: (query: string) => void;
   submitQuery: (query: string) => Promise<void>;
   regenerateMessage: (messageId: string, newQuery: string) => Promise<void>;
   setSelectedChartType: (type: ChartType) => void;
-  toggleChart: () => void;
+  toggleChart: (value:boolean) => void;
   startNewConversation: () => void;
   loadConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
@@ -49,6 +50,7 @@ interface SqlStore {
   submitFeedback: (foundMessage: Message) => Promise<void>; 
   setMessageFeedback: (messageId:string, feedback:string) => void;
   regenerateQuery:(message:Message)=>void;
+  setcurrentVisualMessage:(result:QueryResult)=>void;
   // new
 }
 
@@ -145,8 +147,10 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
   isLoading: false,
   selectedChartType: 'bar',
   showChart: false,
+  currentVisualMessage:null,
 
   setCurrentQuery: (query) => set({ currentQuery: query }),
+  setcurrentVisualMessage:(result)=>set({currentVisualMessage:result}),
 
   submitQuery: async (query) => {
     set({ isLoading: true });
@@ -331,6 +335,7 @@ setMessageFeedback: (messageId: string, feedback: string) => {
         content: "Here's the updated SQL query:",
         sql: newQuery,
         result,
+        feedback:"none",
         isLoading: false,
         timestamp: new Date(),
       };
@@ -410,7 +415,7 @@ setMessageFeedback: (messageId: string, feedback: string) => {
 },
 
   setSelectedChartType: (type) => set({ selectedChartType: type }),
-  toggleChart: () => set((state) => ({ showChart: !state.showChart })),
+  toggleChart: (value) => set((state) => ({ showChart: value })),
   startNewConversation: () => set({ currentConversation: null }),
   loadConversation: (id) => {
     const conversation = get().conversations.find(c => c.id === id);
