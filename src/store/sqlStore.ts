@@ -5,7 +5,7 @@ import axios from "axios";
 export interface QueryResult {
   columns: string[];
   rows: any[][];
-    error?: string; 
+  error?: string; 
 }
 
 export interface Conversation {
@@ -19,12 +19,12 @@ export interface Message {
   id: string;
   type: 'user' | 'assistant';
   content: string;
-  userQuery:string;
+  userQuery: string;
   sql?: string;
   result?: QueryResult;
   timestamp: Date;
   isLoading?: boolean;
-  feedback?:string;
+  feedback?: string;
 }
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'area';
@@ -36,22 +36,21 @@ interface SqlStore {
   isLoading: boolean;
   selectedChartType: ChartType;
   showChart: boolean;
-  currentVisualMessage:QueryResult;
+  currentVisualMessage: QueryResult | null;
 
   setCurrentQuery: (query: string) => void;
   submitQuery: (query: string) => Promise<void>;
   regenerateMessage: (messageId: string, newQuery: string) => Promise<void>;
   setSelectedChartType: (type: ChartType) => void;
-  toggleChart: (value:boolean) => void;
+  toggleChart: (value: boolean) => void;
   startNewConversation: () => void;
   loadConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   loadConversationsFromStorage: () => void;
   submitFeedback: (foundMessage: Message) => Promise<void>; 
-  setMessageFeedback: (messageId:string, feedback:string) => void;
-  regenerateQuery:(message:Message)=>void;
-  setcurrentVisualMessage:(result:QueryResult)=>void;
-  // new
+  setMessageFeedback: (messageId: string, feedback: string) => void;
+  regenerateQuery: (message: Message) => Promise<void>;
+  setcurrentVisualMessage: (result: QueryResult) => void;
 }
 
 // --- LocalStorage Helpers ---
@@ -100,29 +99,28 @@ const generateResult = async (sql: string): Promise<QueryResult> => {
       rows: data.data
         ? data.data.map((row: any) => data.columns.map((col: string) => row[col]))
         : [],
-      error: data.error || undefined,  // <-- capture backend error
+      error: data.error || undefined,
     };
   } catch (error: any) {
     console.error("Error executing SQL:", error);
     return {
       columns: ["Error"],
       rows: [],
-      error: error.response?.data?.error || error.message || "Unknown error", // <-- fallback error
+      error: error.response?.data?.error || error.message || "Unknown error",
     };
   }
 };
 
-
-const generateMockSql = async (query: string): Promise<string> => {
+const generateMockSql = async (query: string): Promise<{ explanation: string; sql: string }> => {
   try {
     const res = await axios.post(
       `${import.meta.env.VITE_API_BASE_URL}translate`,
       { question: query }
     );
-    return res.data.sql;
+    return res.data;
   } catch (error: any) {
     console.error("Error generating SQL:", error);
-    return "/* Failed to generate SQL */";
+    return { explanation: "Error fetching SQL", sql: "failed_to_load_sql" };
   }
 };
 
@@ -147,10 +145,10 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
   isLoading: false,
   selectedChartType: 'bar',
   showChart: false,
-  currentVisualMessage:null,
+  currentVisualMessage: null,
 
   setCurrentQuery: (query) => set({ currentQuery: query }),
-  setcurrentVisualMessage:(result)=>set({currentVisualMessage:result}),
+  setcurrentVisualMessage: (result) => set({ currentVisualMessage: result }),
 
   submitQuery: async (query) => {
     set({ isLoading: true });
@@ -158,7 +156,7 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
     const userMessage: Message = {
       id: uuidv4(),
       type: 'user',
-      userQuery:query,
+      userQuery: query,
       content: query,
       timestamp: new Date(),
     };
@@ -180,7 +178,7 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
       id: uuidv4(),
       type: 'assistant',
       content: '',
-      userQuery:query,
+      userQuery: query,
       isLoading: true,
       timestamp: new Date(),
     };
@@ -199,16 +197,16 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
     saveConversationsToStorage(updatedConversations);
 
     try {
-      const sql = await generateMockSql(query);
-      const result = await generateResult(sql);
+      const regeneratedSql = await generateMockSql(query);
+      const regeneratedResult = await generateResult(regeneratedSql.sql);
 
       const assistantMessage: Message = {
         ...loadingMessage,
-        content: "Here's the SQL query for your request:",
-        userQuery:query,
-        sql,
-        result,
-        feedback:"none",
+        content: regeneratedSql.explanation || "Here's the SQL query:",
+        userQuery: query,
+        sql: regeneratedSql.sql,
+        result: regeneratedResult,
+        feedback: "none",
         isLoading: false,
         timestamp: new Date(),
       };
@@ -235,92 +233,61 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
     }
   },
 
-submitFeedback: async (foundMessage:Message) => {
-  const state = get();
+  submitFeedback: async (foundMessage: Message) => {
+    if (!foundMessage.sql || !foundMessage.userQuery) return;
 
-  // 🔎 Search across all conversations
-  // const allConversations = state.conversations;
-  // let foundMessage: Message | undefined;
+    const feedback = await sendFeedback(foundMessage.sql, foundMessage.userQuery);
+    if (feedback.success) {
+      console.log("Feedback submitted successfully:", feedback.data);
+    } else {
+      console.error("Feedback submission failed:", feedback.error);
+    }
+  },
 
-  // for (const conv of allConversations) {
-  //   const msg = conv.messages.find(m => m.id === messageId);
-  //   if (msg) {
-  //     foundMessage = msg;
-  //     break;
-  //   }
-  // }
+  setMessageFeedback: (messageId, feedback) => {
+    const state = get();
+    const convIndex = state.conversations.findIndex(conv =>
+      conv.messages.some(m => m.id === messageId)
+    );
+    if (convIndex === -1) return;
 
-  if (!foundMessage) {
-    console.error("Message not found for feedback.");
-    return;
-  }
+    const conversation = { ...state.conversations[convIndex] };
+    const msgIndex = conversation.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
 
-  if (!foundMessage.sql || !foundMessage.userQuery) {
-    console.error("Message missing sql or userQuery for feedback.");
-    return;
-  }
+    conversation.messages[msgIndex] = {
+      ...conversation.messages[msgIndex],
+      feedback,
+    };
 
-  const feedback = await sendFeedback(foundMessage.sql, foundMessage.userQuery);
+    const updatedConversations = [...state.conversations];
+    updatedConversations[convIndex] = conversation;
 
-  if (feedback.success) {
-    console.log("Feedback submitted successfully:", feedback.data);
-  } else {
-    console.error("Feedback submission failed:", feedback.error);
-  }
-},
-setMessageFeedback: (messageId: string, feedback: string) => {
-  const state = get();
+    set({
+      conversations: updatedConversations,
+      currentConversation:
+        state.currentConversation?.id === conversation.id
+          ? conversation
+          : state.currentConversation,
+    });
 
-  // Find the conversation containing the message
-  const convIndex = state.conversations.findIndex(conv =>
-    conv.messages.some(m => m.id === messageId)
-  );
-  if (convIndex === -1) return; // no conversation found
-
-  const conversation = { ...state.conversations[convIndex] };
-
-  // Find the target message
-  const msgIndex = conversation.messages.findIndex(m => m.id === messageId);
-  if (msgIndex === -1) return;
-
-  // Update only that message
-  conversation.messages[msgIndex] = {
-    ...conversation.messages[msgIndex],
-    feedback,
-  };
-
-  // Replace the conversation in the list
-  const updatedConversations = [...state.conversations];
-  updatedConversations[convIndex] = conversation;
-
-  set({
-    conversations: updatedConversations,
-    currentConversation:
-      state.currentConversation?.id === conversation.id
-        ? conversation
-        : state.currentConversation,
-  });
-
-  saveConversationsToStorage(updatedConversations);
-},
-
-
+    saveConversationsToStorage(updatedConversations);
+  },
 
   regenerateMessage: async (messageId, newQuery) => {
     const state = get();
     if (!state.currentConversation) return;
 
     const conversation = { ...state.currentConversation };
+    const targetIndex = conversation.messages.findIndex(m => m.id === messageId);
+    if (targetIndex === -1) return;
 
-    const targetMessageIndex = conversation.messages.findIndex(m => m.id === messageId);
-    if (targetMessageIndex === -1) return;
-
-    conversation.messages[targetMessageIndex] = {
-      ...conversation.messages[targetMessageIndex],
+    conversation.messages[targetIndex] = {
+      ...conversation.messages[targetIndex],
       isLoading: true,
       sql: undefined,
       result: undefined,
-      feedback:"none",
+      feedback: "none",
       content: '',
       timestamp: new Date(),
     };
@@ -330,27 +297,24 @@ setMessageFeedback: (messageId: string, feedback: string) => {
     try {
       const result = await generateResult(newQuery);
       const updatedMessage: Message = {
-        ...conversation.messages[targetMessageIndex],
+        ...conversation.messages[targetIndex],
         type: 'assistant',
         content: "Here's the updated SQL query:",
         sql: newQuery,
         result,
-        feedback:"none",
+        feedback: "none",
         isLoading: false,
         timestamp: new Date(),
       };
 
-      conversation.messages[targetMessageIndex] = updatedMessage;
+      conversation.messages[targetIndex] = updatedMessage;
 
       const updatedConversations = [
         conversation,
-        ...state.conversations.filter(c => c.id !== conversation!.id)
+        ...state.conversations.filter(c => c.id !== conversation.id)
       ];
 
-      set({
-        currentConversation: { ...conversation },
-        conversations: updatedConversations,
-      });
+      set({ currentConversation: { ...conversation }, conversations: updatedConversations });
       saveConversationsToStorage(updatedConversations);
     } catch (error) {
       console.error('Error regenerating message:', error);
@@ -359,63 +323,56 @@ setMessageFeedback: (messageId: string, feedback: string) => {
   },
 
   regenerateQuery: async (message: Message) => {
-  const state = get();
-  if (!state.currentConversation) return;
+    const state = get();
+    if (!state.currentConversation) return;
 
-  const conversation = { ...state.currentConversation };
+    const conversation = { ...state.currentConversation };
+    const targetIndex = conversation.messages.findIndex(m => m.id === message.id);
+    if (targetIndex === -1) return;
 
-  // find the index of the passed message
-  const targetMessageIndex = conversation.messages.findIndex(m => m.id === message.id);
-  if (targetMessageIndex === -1) return;
-
-  // put loading state
-  conversation.messages[targetMessageIndex] = {
-    ...conversation.messages[targetMessageIndex],
-    isLoading: true,
-    sql: undefined,
-    result: undefined,
-    feedback: "none",
-    content: '',
-    timestamp: new Date(),
-  };
-
-  set({ currentConversation: conversation });
-
-  try {
-    // regenerate sql first
-    const regeneratedSql = await generateMockSql(message.userQuery);
-    const regeneratedResult = await generateResult(regeneratedSql);
-
-    const updatedMessage: Message = {
-      ...conversation.messages[targetMessageIndex],
-      type: 'assistant',
-      content: "Here's the regenerated SQL query:",
-      sql: regeneratedSql,
-      result: regeneratedResult,
-      isLoading: false,
+    conversation.messages[targetIndex] = {
+      ...conversation.messages[targetIndex],
+      isLoading: true,
+      sql: undefined,
+      result: undefined,
+      feedback: "none",
+      content: '',
       timestamp: new Date(),
     };
 
-    conversation.messages[targetMessageIndex] = updatedMessage;
-
-    const updatedConversations = [
-      conversation,
-      ...state.conversations.filter(c => c.id !== conversation!.id)
-    ];
-
-    set({
-      currentConversation: { ...conversation },
-      conversations: updatedConversations,
-    });
-    saveConversationsToStorage(updatedConversations);
-  } catch (error) {
-    console.error('Error regenerating query:', error);
     set({ currentConversation: conversation });
-  }
-},
+
+    try {
+      const regeneratedSql = await generateMockSql(message.userQuery);
+      const regeneratedResult = await generateResult(regeneratedSql.sql);
+
+      const updatedMessage: Message = {
+        ...conversation.messages[targetIndex],
+        type: 'assistant',
+        content: regeneratedSql.explanation || "Here's the SQL query:",
+        sql: regeneratedSql.sql,
+        result: regeneratedResult,
+        isLoading: false,
+        timestamp: new Date(),
+      };
+
+      conversation.messages[targetIndex] = updatedMessage;
+
+      const updatedConversations = [
+        conversation,
+        ...state.conversations.filter(c => c.id !== conversation.id)
+      ];
+
+      set({ currentConversation: { ...conversation }, conversations: updatedConversations });
+      saveConversationsToStorage(updatedConversations);
+    } catch (error) {
+      console.error('Error regenerating query:', error);
+      set({ currentConversation: conversation });
+    }
+  },
 
   setSelectedChartType: (type) => set({ selectedChartType: type }),
-  toggleChart: (value) => set((state) => ({ showChart: value })),
+  toggleChart: (value) => set({ showChart: value }),
   startNewConversation: () => set({ currentConversation: null }),
   loadConversation: (id) => {
     const conversation = get().conversations.find(c => c.id === id);
@@ -428,7 +385,6 @@ setMessageFeedback: (messageId: string, feedback: string) => {
     set({ conversations: updatedConversations, currentConversation });
     saveConversationsToStorage(updatedConversations);
   },
-
   loadConversationsFromStorage: () => {
     const conversations = loadConversationsFromStorage();
     set({ conversations });

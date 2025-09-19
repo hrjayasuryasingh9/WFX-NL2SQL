@@ -87,7 +87,6 @@ export function MainContent({ setIsOpen }: { setIsOpen: (v: boolean) => void }) 
                                 <ChatMessage key={message.id} message={message} />
                             ))}
                             {/* 👇 dummy div to scroll into view */}
-                            <div ref={scrollRef} />
                         </div>
                     )}
                 </div>

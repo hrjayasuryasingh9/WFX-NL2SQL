@@ -89,7 +89,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             <Bot className="w-4 h-4 text-blue-600" />
                         </div>
 
-                        <div className="flex items-center bg-gray-100 rounded-2xl px-4 py-3 shadow-sm min-h-[45px]">
+                        <div className="flex items-center bg-gray-100 rounded-xl px-4 py-3 shadow-sm min-h-[45px] w-fit">
                             <AnimatePresence mode="wait">
                                 <motion.span
                                     key={index}
@@ -98,7 +98,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                     exit={{ opacity: 0, y: -15, scale: 0.95 }}
                                     transition={{ duration: 0.5 }}
                                     className="text-sm font-medium bg-gradient-to-r from-blue-600 to-blue-400 
-                 bg-clip-text text-transparent tracking-wide"
+            bg-clip-text text-transparent tracking-wide whitespace-nowrap overflow-hidden"
                                 >
                                     {messages[index]}
                                 </motion.span>
@@ -106,6 +106,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         </div>
                     </div>
                 </div>
+
             ) : (
                 <div className="flex justify-start mb-6">
                     <div className="flex items-start gap-3 max-w-[90%] w-full">

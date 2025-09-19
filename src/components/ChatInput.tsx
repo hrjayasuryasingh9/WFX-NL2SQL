@@ -19,6 +19,7 @@ export function ChatInput() {
 
         setLocalQuery('');
         setSelectedExample(null);
+        setShowExamples(false);
     };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

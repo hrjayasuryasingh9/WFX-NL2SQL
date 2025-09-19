@@ -255,23 +255,25 @@ export function ChartVisualization() {
                                 </Button>
                             ))}
                     </div>
-                    <div className="flex gap-2 items-center">
-                        <Input
-                            type="number"
-                            value={range.start}
-                            onChange={(e) => setRange({ ...range, start: Number(e.target.value) })}
-                            className="w-20"
-                            placeholder="Start"
-                        />
-                        <span>to</span>
-                        <Input
-                            type="number"
-                            value={range.end}
-                            onChange={(e) => setRange({ ...range, end: Number(e.target.value) })}
-                            className="w-20"
-                            placeholder="End"
-                        />
-                    </div>
+
+                </div>
+                <div className="flex gap-2 items-center mb-2">
+                    <label className="text-sm font-medium text-foreground">Rows:</label>
+                    <Input
+                        type="number"
+                        value={range.start}
+                        onChange={(e) => setRange({ ...range, start: Number(e.target.value) })}
+                        className="w-20"
+                        placeholder="Start"
+                    />
+                    <span>to</span>
+                    <Input
+                        type="number"
+                        value={range.end}
+                        onChange={(e) => setRange({ ...range, end: Number(e.target.value) })}
+                        className="w-20"
+                        placeholder="End"
+                    />
                 </div>
 
                 {/* Pagination Dropdown */}
@@ -285,6 +287,6 @@ export function ChartVisualization() {
                     {error ? <p className="text-muted-foreground">{error}</p> : renderChart()}
                 </div>
             </div>
-        </Card>
+        </Card >
     );
 }
