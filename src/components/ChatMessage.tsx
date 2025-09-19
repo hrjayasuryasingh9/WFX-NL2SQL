@@ -116,7 +116,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         <div className="flex-1 space-y-4">
                             {/* AI Response */}
                             <div className="bg-gray-50 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
-                                <p className="text-sm text-foreground">{message.content}</p>
+                                <p
+                                    className={`text-sm ${message?.error ? "text-red-500" : "text-foreground"
+                                        }`}
+                                >
+                                    {message?.error || message?.content}
+                                </p>
+
                                 <p className="text-xs text-muted-foreground mt-1">
                                     {formatTimestamp(message.timestamp)}
                                 </p>

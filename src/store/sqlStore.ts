@@ -20,6 +20,7 @@ export interface Message {
   type: 'user' | 'assistant';
   content: string;
   userQuery: string;
+  error?: string;
   sql?: string;
   result?: QueryResult;
   timestamp: Date;
@@ -111,7 +112,9 @@ const generateResult = async (sql: string): Promise<QueryResult> => {
   }
 };
 
-const generateMockSql = async (query: string): Promise<{ explanation: string; sql: string }> => {
+const generateMockSql = async (
+  query: string
+): Promise<{ explanation: string; sql: string; error?: string }> => {
   try {
     const res = await axios.post(
       `${import.meta.env.VITE_API_BASE_URL}translate`,
@@ -120,9 +123,10 @@ const generateMockSql = async (query: string): Promise<{ explanation: string; sq
     return res.data;
   } catch (error: any) {
     console.error("Error generating SQL:", error);
-    return { explanation: "Error fetching SQL", sql: "failed_to_load_sql" };
+    return { explanation: "Error fetching SQL", sql: "failed_to_load_sql", error: error.message };
   }
 };
+
 
 const sendFeedback = async (sql: string, question: string) => {
   try {
@@ -150,69 +154,66 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
   setCurrentQuery: (query) => set({ currentQuery: query }),
   setcurrentVisualMessage: (result) => set({ currentVisualMessage: result }),
 
-  submitQuery: async (query) => {
-    set({ isLoading: true });
+submitQuery: async (query) => {
+  set({ isLoading: true });
 
-    const userMessage: Message = {
+  const userMessage: Message = {
+    id: uuidv4(),
+    type: 'user',
+    userQuery: query,
+    content: query,
+    timestamp: new Date(),
+  };
+
+  let conversation = get().currentConversation;
+
+  if (!conversation) {
+    conversation = {
       id: uuidv4(),
-      type: 'user',
-      userQuery: query,
-      content: query,
-      timestamp: new Date(),
+      title: query.slice(0, 50) + (query.length > 50 ? '...' : ''),
+      messages: [],
+      createdAt: new Date(),
     };
+  }
 
-    let conversation = get().currentConversation;
+  conversation.messages.push(userMessage);
 
-    if (!conversation) {
-      conversation = {
-        id: uuidv4(),
-        title: query.slice(0, 50) + (query.length > 50 ? '...' : ''),
-        messages: [],
-        createdAt: new Date(),
-      };
-    }
+  const loadingMessage: Message = {
+    id: uuidv4(),
+    type: 'assistant',
+    content: '',
+    userQuery: query,
+    isLoading: true,
+    timestamp: new Date(),
+  };
 
-    conversation.messages.push(userMessage);
+  conversation.messages.push(loadingMessage);
 
-    const loadingMessage: Message = {
-      id: uuidv4(),
-      type: 'assistant',
-      content: '',
-      userQuery: query,
-      isLoading: true,
-      timestamp: new Date(),
-    };
+  const updatedConversations = [
+    conversation,
+    ...get().conversations.filter(c => c.id !== conversation!.id)
+  ];
 
-    conversation.messages.push(loadingMessage);
+  set({
+    currentConversation: conversation,
+    conversations: updatedConversations,
+  });
+  saveConversationsToStorage(updatedConversations);
 
-    const updatedConversations = [
-      conversation,
-      ...get().conversations.filter(c => c.id !== conversation!.id)
-    ];
+  try {
+    const regeneratedSql = await generateMockSql(query);
 
-    set({
-      currentConversation: conversation,
-      conversations: updatedConversations,
-    });
-    saveConversationsToStorage(updatedConversations);
-
-    try {
-      const regeneratedSql = await generateMockSql(query);
-      const regeneratedResult = await generateResult(regeneratedSql.sql);
-
-      const assistantMessage: Message = {
+    // If SQL generation failed
+    if (!regeneratedSql.sql || regeneratedSql.sql === "failed_to_load_sql") {
+      const errorMessage: Message = {
         ...loadingMessage,
-        content: regeneratedSql.explanation || "Here's the SQL query:",
-        userQuery: query,
-        sql: regeneratedSql.sql,
-        result: regeneratedResult,
-        feedback: "none",
+        error: regeneratedSql.error || "Failed to generate SQL.",
         isLoading: false,
         timestamp: new Date(),
       };
 
       conversation.messages = conversation.messages.map(m =>
-        m.id === loadingMessage.id ? assistantMessage : m
+        m.id === loadingMessage.id ? errorMessage : m
       );
 
       const finalConversations = [
@@ -227,11 +228,59 @@ export const useSqlStore = create<SqlStore>((set, get) => ({
         isLoading: false,
       });
       saveConversationsToStorage(finalConversations);
-    } catch (error) {
-      console.error('Error submitting query:', error);
-      set({ isLoading: false });
+      return; // <-- stop further execution
     }
-  },
+
+    // Only run SQL if generation succeeded
+    const regeneratedResult = await generateResult(regeneratedSql.sql);
+
+    const assistantMessage: Message = {
+      ...loadingMessage,
+      content: regeneratedSql.explanation || "Here's the SQL query:",
+      userQuery: query,
+      sql: regeneratedSql.sql,
+      result: regeneratedResult,
+      feedback: "none",
+      isLoading: false,
+      timestamp: new Date(),
+    };
+
+    conversation.messages = conversation.messages.map(m =>
+      m.id === loadingMessage.id ? assistantMessage : m
+    );
+
+    const finalConversations = [
+      conversation,
+      ...get().conversations.filter(c => c.id !== conversation!.id)
+    ];
+
+    set({
+      currentConversation: { ...conversation },
+      conversations: finalConversations,
+      currentQuery: '',
+      isLoading: false,
+    });
+    saveConversationsToStorage(finalConversations);
+
+  } catch (error) {
+    console.error('Error submitting query:', error);
+
+    const errorMessage: Message = {
+      ...loadingMessage,
+      content: error.message || "Unknown error occurred.",
+      isLoading: false,
+      timestamp: new Date(),
+    };
+
+    conversation.messages = conversation.messages.map(m =>
+      m.id === loadingMessage.id ? errorMessage : m
+    );
+
+    set({ currentConversation: { ...conversation }, isLoading: false });
+    saveConversationsToStorage(get().conversations);
+  }
+},
+
 
   submitFeedback: async (foundMessage: Message) => {
     if (!foundMessage.sql || !foundMessage.userQuery) return;
